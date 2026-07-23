@@ -102,6 +102,7 @@ namespace BulkyBookWeb.Areas.Customer.Controllers
             await _categoryService.DeleteCategoryAsync(id.Value);
             TempData["success"] = "Category deleted successfully.";
             return RedirectToAction("Index");
+
         }
     }
 }
