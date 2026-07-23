@@ -4,8 +4,9 @@ using BulkyBook.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
-namespace BulkyBookWeb.Controllers
+namespace BulkyBookWeb.Areas.Customer.Controllers
 {
+    [Area("Customer")]
     public class CategoryController : Controller
     {
         private readonly ICategoryService _categoryService;
@@ -94,6 +95,10 @@ namespace BulkyBookWeb.Controllers
         [ActionName("Delete")]
         public async Task<IActionResult> DeletePost(int? id)
         {
+            if (id == null || id == 0)
+            {
+                return NotFound();
+            }
             await _categoryService.DeleteCategoryAsync(id.Value);
             TempData["success"] = "Category deleted successfully.";
             return RedirectToAction("Index");
