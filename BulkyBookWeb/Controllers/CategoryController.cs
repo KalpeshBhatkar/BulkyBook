@@ -1,4 +1,5 @@
-﻿using BulkyBook.DataAccess.Data;
+﻿using BulkyBook.Business.Services.IServices;
+using BulkyBook.DataAccess.Data;
 using BulkyBook.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,14 +8,14 @@ namespace BulkyBookWeb.Controllers
 {
     public class CategoryController : Controller
     {
-        private readonly ApplicationDbContext _context;
-        public CategoryController(ApplicationDbContext context)
+        private readonly ICategoryService _categoryService;
+        public CategoryController(ICategoryService categoryService)
         {
-            _context = context;
+            _categoryService = categoryService;
         }
         public async Task<IActionResult> Index()
         {
-            var categories = await _context.Categories.AsNoTracking().OrderBy(c => c.DisplayOrder).ToListAsync();
+            var categories = await _categoryService.GetAllCategoriesAsync();
             return View(categories);
         }
 
@@ -26,29 +27,28 @@ namespace BulkyBookWeb.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [ActionName("Create")]
-        public IActionResult CreatePost(Category category)
+        public async Task<IActionResult> CreatePost(Category category)
         {
-            if (!string.IsNullOrEmpty(category.Name) && _context.Categories.Any(c => c.Name.ToLower() == category.Name.ToLower()))
+            if (!string.IsNullOrEmpty(category.Name) && !await _categoryService.IsCategoryNameUniqueAsync(category.Name))
             {
                 ModelState.AddModelError("", "Category Name Already Exists.");
             }
             if (ModelState.IsValid)
             {
-                _context.Categories.Add(category);
-                _context.SaveChanges();
+                await _categoryService.CreateCategoryAsync(category);
                 TempData["success"] = "Category created successfully.";
                 return RedirectToAction("Index");
             }
             return View();
         }
 
-        public IActionResult Update(int? id)
+        public async Task<IActionResult> Update(int? id)
         {
             if (id == null || id == 0)
             {
                 return NotFound();
             }
-            var category = _context.Categories.AsNoTracking().Where(c => c.Id == id).FirstOrDefault();
+            var category = await _categoryService.GetCategoryByIdAsync(id.Value);
             if (category == null)
             {
                 return NotFound();
@@ -59,16 +59,15 @@ namespace BulkyBookWeb.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [ActionName("Update")]
-        public IActionResult UpdatePost(Category category)
+        public async Task<IActionResult> UpdatePost(Category category)
         {
-            if (!string.IsNullOrEmpty(category.Name) && _context.Categories.Any(c => c.Name.ToLower() == category.Name.ToLower() && c.Id != category.Id))
+            if (!string.IsNullOrEmpty(category.Name) && !await _categoryService.IsCategoryNameUniqueAsync(category.Name, category.Id))
             {
                 ModelState.AddModelError("", "Category Name Already Exists.");
             }
             if (ModelState.IsValid)
             {
-                _context.Categories.Update(category);
-                _context.SaveChanges();
+                await _categoryService.UpdateCategoryAsync(category);
                 TempData["success"] = "Category updated successfully.";
                 return RedirectToAction("Index");
             }
@@ -76,13 +75,13 @@ namespace BulkyBookWeb.Controllers
         }
 
 
-        public IActionResult Delete(int? id)
+        public async Task<IActionResult> Delete(int? id)
         {
             if (id == null || id == 0)
             {
                 return NotFound();
             }
-            var category = _context.Categories.AsNoTracking().Where(c => c.Id == id).FirstOrDefault();
+            var category = await _categoryService.GetCategoryByIdAsync(id.Value);
             if (category == null)
             {
                 return NotFound();
@@ -93,15 +92,9 @@ namespace BulkyBookWeb.Controllers
         [HttpPost]
         [ValidateAntiForgeryToken]
         [ActionName("Delete")]
-        public IActionResult DeletePost(int? id)
+        public async Task<IActionResult> DeletePost(int? id)
         {
-            var category = _context.Categories.Where(c => c.Id == id).FirstOrDefault();
-            if (category == null)
-            {
-                return NotFound();
-            }
-            _context.Categories.Remove(category);
-            _context.SaveChanges();
+            await _categoryService.DeleteCategoryAsync(id.Value);
             TempData["success"] = "Category deleted successfully.";
             return RedirectToAction("Index");
         }
