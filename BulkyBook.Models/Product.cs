@@ -44,11 +44,14 @@ namespace BulkyBook.Models
         [Range(1, 1000, ErrorMessage = "Price must be between 1 and 1000.")]
         public double Price100 { get; set; }
 
-        [DisplayName("Product Image+")]
+        [DisplayName("Product Image")]
         [ValidateNever]
         public string? ImageUrl { get; set; }
+
         [DisplayName("Category")]
         public int CategoryId { get; set; }
+
+        [ValidateNever]
         [ForeignKey(nameof(CategoryId))]
         public Category Category { get; set; }
     }

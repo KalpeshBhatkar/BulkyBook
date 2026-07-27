@@ -2,6 +2,7 @@
 using BulkyBook.Business.Services.IServices;
 using BulkyBook.DataAccess.Data;
 using BulkyBook.Models;
+using BulkyBook.Models.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
@@ -13,10 +14,12 @@ namespace BulkyBookWeb.Areas.Customer.Controllers
     {
         private readonly IProductService _productService;
         private readonly ICategoryService _categoryService;
-        public ProductController(IProductService productService, ICategoryService categoryService)
+        private readonly IWebHostEnvironment _webHostEnvironment;
+        public ProductController(IProductService productService, ICategoryService categoryService, IWebHostEnvironment webHostEnvironment)
         {
             _productService = productService;
             _categoryService = categoryService;
+            _webHostEnvironment = webHostEnvironment;
         }
         public async Task<IActionResult> Index()
         {
@@ -26,32 +29,70 @@ namespace BulkyBookWeb.Areas.Customer.Controllers
 
         public async Task<IActionResult> Upsert()
         {
-            IEnumerable<SelectListItem> categoryList = (await _categoryService.GetAllCategoriesAsync())
-                .Select(c => new SelectListItem
+            var categories = await _categoryService.GetAllCategoriesAsync();
+
+            ProductVM productVM = new()
+            {
+                Product = new Product(),
+                CategoryList = categories.Select(c => new SelectListItem
                 {
                     Text = c.Name,
                     Value = c.Id.ToString()
-                });
-            ViewData["categoryList"] = categoryList;
-            return View();
+                })
+            };
+
+            return View(productVM);
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
         [ActionName("Upsert")]
-        public async Task<IActionResult> UpsertPost(Product category)
+        public async Task<IActionResult> UpsertPost(ProductVM productVM, IFormFile? file)
         {
-            if (!string.IsNullOrEmpty(category.Title))
-            {
-                ModelState.AddModelError("", "Product Name Already Exists.");
-            }
             if (ModelState.IsValid)
             {
-                await _productService.CreateProductAsync(category);
+                string wwwRootPath = _webHostEnvironment.WebRootPath;
+
+                if(file != null)
+                {
+                    string fileName = Guid.NewGuid().ToString();
+                    var uploads = Path.Combine(wwwRootPath, @"images\products");
+                    var extension = Path.GetExtension(file.FileName);
+
+                    if(!Directory.Exists(uploads))
+                    {
+                        Directory.CreateDirectory(uploads);
+                    }
+
+                    if (productVM.Product.ImageUrl != null)
+                    {
+                        var oldImagePath = Path.Combine(wwwRootPath, productVM.Product.ImageUrl.TrimStart('\\'));
+                        if (System.IO.File.Exists(oldImagePath))
+                        {
+                            System.IO.File.Delete(oldImagePath);
+                        }
+                    }
+                    using (var fileStreams = new FileStream(Path.Combine(uploads, fileName + extension), FileMode.Create))
+                    {
+                        file.CopyTo(fileStreams);
+                    }
+                    productVM.Product.ImageUrl = @"\images\products\" + fileName + extension;
+
+                }
+
+
+                await _productService.CreateProductAsync(productVM.Product);
                 TempData["success"] = "Product created successfully.";
                 return RedirectToAction("Index");
             }
-            return View();
+            var categories = await _categoryService.GetAllCategoriesAsync();
+
+            productVM.CategoryList = categories.Select(c => new SelectListItem
+            {
+                Text = c.Name,
+                Value = c.Id.ToString()
+            });
+            return View(productVM);
         }
 
 
