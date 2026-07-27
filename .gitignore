@@ -361,3 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# ProductImage
+BulkyBookWeb/wwwroot/images/products/*
+!BulkyBookWeb/wwwroot/images/products/.gitkeep/
