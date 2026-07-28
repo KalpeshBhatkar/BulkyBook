@@ -24,7 +24,8 @@
                             </div>
                             <div class="col-12">
                                 <label asp-for="Product.Description" class=" form-label fw-semibold small"></label>
-                                <input type="text" asp-for="Product.Description" class="form-control" placeholder="Enter Product Description" />
+                                <textarea asp-for="Product.Description" hidden class="form-control" placeholder="Enter Product Description"></textarea>
+                                <div id="quill-editor" style="height:200px;"></div>
                                 <span asp-validation-for="Product.Description" class="text-danger small"></span>
                             </div>
                             <div class="col-6">
@@ -79,7 +80,7 @@
                             </div>
                         </div>
                         <div class="d-flex gap-2 mt-4">
-                            <button type="submit" class="btn btn-accent fw-semibold">@(Model.Product.Id != 0 ? "Edit" : "Create") Product</button>
+                            <button type="submit" class="btn btn-accent fw-semibold">@(Model.Product.Id != 0 ? "Update" : "Create") Product</button>
                             <a class="btn btn-light fw-medium" asp-controller="Product" asp-action="Index">Cancel</a>
                         </div>
                     </div>
@@ -109,4 +110,25 @@
 </div>
 @section Scripts {
     <partial name="_ValidationScriptsPartial"></partial>
+
+        <!-- Include stylesheet and  Quill library -->
+        <link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet" />
+        <script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+
+        <!-- Initialize Quill editor -->
+        <script>
+            const quill = new Quill('#quill-editor', {
+                theme: 'snow'
+            });
+
+            const textAreaDesc = document.querySelector('textarea[name="Product.Description"]');
+
+            //load existing content and auto-sync
+            if (textAreaDesc.value){
+                quill.root.innerHTML = textAreaDesc.value;
+            }
+
+            quill.on('text-change', () => textAreaDesc.value = quill.root.innerHTML);
+        </script>
+
     }
