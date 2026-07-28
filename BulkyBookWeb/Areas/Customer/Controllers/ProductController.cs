@@ -1,11 +1,8 @@
-﻿using BulkyBook.Business.Services;
-using BulkyBook.Business.Services.IServices;
-using BulkyBook.DataAccess.Data;
+﻿using BulkyBook.Business.Services.IServices;
 using BulkyBook.Models;
 using BulkyBook.Models.ViewModels;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
-using Microsoft.EntityFrameworkCore;
 
 namespace BulkyBookWeb.Areas.Customer.Controllers
 {
@@ -110,6 +107,7 @@ namespace BulkyBookWeb.Areas.Customer.Controllers
             return View(productVM);
         }
 
+        
 
 
         #region API Calls
@@ -118,6 +116,33 @@ namespace BulkyBookWeb.Areas.Customer.Controllers
         {
             var products = await _productService.GetAllProductsAsync(true);
             return Json(new { data = products });
+        }
+
+        [HttpDelete]
+        public async Task<IActionResult> Delete(int? id)
+        {
+            if (id == null || id == 0)
+            {
+                return Json(new { success = false, message = "Invalid ID" });
+            }
+            var productToBeDeleted = await _productService.GetProductByIdAsync(id.Value);
+            if (productToBeDeleted == null)
+            {
+                return Json(new { success = false, message = "Error while deleting" });
+            }
+
+            if (!string.IsNullOrEmpty(productToBeDeleted.ImageUrl))
+            {
+                var imagePath = Path.Combine(_webHostEnvironment.WebRootPath, productToBeDeleted.ImageUrl.Trim('\\'));
+
+                if (System.IO.File.Exists(imagePath))
+                {
+                    System.IO.File.Delete(imagePath);
+                }
+            }
+
+            await _productService.DeleteProductAsync(id.Value);
+            return Json(new { success = true, message = "Delete successfully" });
         }
         #endregion
     }

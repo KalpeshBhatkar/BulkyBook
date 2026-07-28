@@ -1,6 +1,11 @@
-﻿
+﻿var productDataTable;
+
+$(document).ready(function () {
+    productDataTable();
+});
+
 //$(document).ready(function () {
-$('#tblData').DataTable({
+productDataTable = $('#tblData').DataTable({
     ajax: {
         url: '/product/getall',
         type: 'GET'
@@ -24,7 +29,7 @@ $('#tblData').DataTable({
                     <a href="/product/upsert?id=${data}" class="btn btn-sm btn-outline-success">
                         <i class="bi bi-pencil-square"></i> Edit
                     </a>
-                    <a href="/product/delete?id=${data}" class="btn btn-sm btn-outline-danger">
+                    <a onclick="Delete('/product/delete/${data}')" class="btn btn-sm btn-outline-danger">
                         <i class="bi bi-trash"></i> Delete
                     </a>
                 </div>`;
@@ -33,3 +38,32 @@ $('#tblData').DataTable({
     ]
 });
 //});
+
+function Delete(url) {
+    Swal.fire({
+        title: "Are you sure?",
+        text: "You won't be able to revert this!",
+        icon: "warning",
+        showCancelButton: true,
+        confirmButtonColor: "#3085d6",
+        cancelButtonColor: "#d33",
+        confirmButtonText: "Yes, delete it!"
+    }).then((result) => {
+        if (result.isConfirmed) {
+            $.ajax({
+                url: url,
+                type: 'DELETE',
+                success: function (data) {
+                    productDataTable.ajax.reload();
+
+                    Swal.fire({
+                        title: "Deleted!",
+                        text: "Your file has been deleted.",
+                        icon: "success"
+                    });
+
+                }
+            });
+        }            
+    });
+}
