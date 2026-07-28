@@ -88,8 +88,15 @@ namespace BulkyBookWeb.Areas.Customer.Controllers
 
                 }
 
+                if (productVM.Product.Id == 0)
+                {
+                    await _productService.CreateProductAsync(productVM.Product);
+                }
+                else
+                {
+                    await _productService.UpdateProductAsync(productVM.Product);
+                }
 
-                await _productService.CreateProductAsync(productVM.Product);
                 TempData["success"] = "Product created successfully.";
                 return RedirectToAction("Index");
             }
