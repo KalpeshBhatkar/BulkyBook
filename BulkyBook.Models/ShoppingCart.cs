@@ -32,8 +32,8 @@ namespace BulkyBook.Models
             {
                 if (Product == null) return 0;
 
-                if (Count < 50) { return Product.Price; }
-                else if (Count < 100) { return Product.Price50; }
+                if (Count <= 50) { return Product.Price; }
+                else if (Count <= 100) { return Product.Price50; }
                 else if (Count < 100) { return Product.Price50; }
                 else { return Product.Price100; }
             }
