@@ -1,6 +1,7 @@
 ﻿using BulkyBook.Business.Services.IServices;
 using BulkyBook.DataAccess.Data;
 using BulkyBook.Models;
+using BulkyBook.Utility;
 using Microsoft.EntityFrameworkCore;
 
 namespace BulkyBook.Business.Services
@@ -36,9 +37,16 @@ namespace BulkyBook.Business.Services
             {
                 query = query.Where(u => u.ApplicationUserId == userId);
             }
-            if (!string.IsNullOrEmpty(status))
+            if (!string.IsNullOrEmpty(status) && status.ToLower() != "all")
             {
-                query = query.Where(u => u.OrderStatus == status);
+                if (status.ToLower() == "cancelled")
+                {
+                    query = query.Where(u => u.OrderStatus == SD.StatusCancelled || u.OrderStatus == SD.StatusRefunded);
+                }
+                else
+                {
+                    query = query.Where(u => u.OrderStatus.ToLower() == status.ToLower());
+                }
             }
             return await query.ToListAsync();
         }
@@ -55,6 +63,35 @@ namespace BulkyBook.Business.Services
                 query = query.Include(o => o.OrderDetails).ThenInclude(od => od.Product);
             }
             return await query.FirstOrDefaultAsync(u => u.Id == id);
+        }
+
+        public async Task UpdateOrderAsync(OrderHeader orderHeader)
+        {
+            _context.OrderHeaders.Update(orderHeader);
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task UpdateOrderStatusAsync(int id, string orderStatus, string? carrier = null, string? trackingNumber = null)
+        {
+            var orderHeader = await _context.OrderHeaders.FindAsync(id);
+            if (orderHeader == null)
+            {
+                throw new KeyNotFoundException($"Order {id} not found");
+            }
+            orderHeader.OrderStatus = orderStatus;
+            if (orderStatus == SD.StatusShipped)
+            {
+                orderHeader.ShippingDate = DateTime.UtcNow;
+                if(!string.IsNullOrEmpty(carrier))
+                {
+                    orderHeader.Carrier = carrier;
+                }
+                if (!string.IsNullOrEmpty(trackingNumber))
+                {
+                    orderHeader.TrackingNumber = trackingNumber;
+                }
+            }
+            await _context.SaveChangesAsync();
         }
     }
 }

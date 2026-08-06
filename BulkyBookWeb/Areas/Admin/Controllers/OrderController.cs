@@ -5,6 +5,7 @@ using BulkyBook.Utility;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
+using System.Security.Claims;
 
 namespace BulkyBookWeb.Areas.Admin.Controllers
 {
@@ -13,8 +14,9 @@ namespace BulkyBookWeb.Areas.Admin.Controllers
     public class OrderController : Controller
     {
         private readonly IOrderService _orderService;
-        private readonly ICategoryService _categoryService;
-        private readonly IWebHostEnvironment _webHostEnvironment;
+
+        [BindProperty]
+        public OrderHeader OrderHeader { get; set; }
         public OrderController(IOrderService orderService)
         {
             _orderService = orderService;
@@ -25,12 +27,99 @@ namespace BulkyBookWeb.Areas.Admin.Controllers
             return View();
         }
 
+        [AllowAnonymous]
+        public async Task<IActionResult> Details(int orderId)
+        {
+            OrderHeader = await _orderService.GetOrderByIdAsync(orderId, includeDetails: true, includeUser: true);
+            return View(OrderHeader);
+        }
+
+        [HttpPost]
+        [Authorize(Roles = SD.RoleAdmin + "," + SD.RoleEmployee)]
+        public async Task<IActionResult> UpdateOrderDetails()
+        {
+            var orderHeaderFromDb = await _orderService.GetOrderByIdAsync(OrderHeader.Id, includeDetails: false, includeUser: false);
+            orderHeaderFromDb.Name = OrderHeader.Name;
+            orderHeaderFromDb.PhoneNumber = OrderHeader.PhoneNumber;
+            orderHeaderFromDb.StreetAddress = OrderHeader.StreetAddress;
+            orderHeaderFromDb.City = OrderHeader.City;
+            orderHeaderFromDb.State = OrderHeader.State;
+            orderHeaderFromDb.PostalCode = OrderHeader.PostalCode;
+            if (!string.IsNullOrEmpty(OrderHeader.Carrier) && orderHeaderFromDb.OrderStatus == SD.StatusShipped)
+            {
+                orderHeaderFromDb.Carrier = OrderHeader.Carrier;
+            }
+            if (!string.IsNullOrEmpty(OrderHeader.TrackingNumber) && orderHeaderFromDb.OrderStatus == SD.StatusShipped)
+            {
+                orderHeaderFromDb.TrackingNumber = OrderHeader.TrackingNumber;
+            }
+            await _orderService.UpdateOrderAsync(orderHeaderFromDb);
+            TempData["Success"] = "Order Details Updated Successfully.";
+
+            return RedirectToAction(nameof(Details), new { orderId = orderHeaderFromDb.Id });
+        }
+
+        [HttpPost]
+        [Authorize(Roles = SD.RoleAdmin + "," + SD.RoleEmployee)]
+        public async Task<IActionResult> UpdateOrderStatus(string status)
+        {
+            var orderHeader = await _orderService.GetOrderByIdAsync(OrderHeader.Id, includeDetails: false, includeUser: false);
+            if (orderHeader == null)
+            {
+                TempData["error"] = "Order not found.";
+                return RedirectToAction(nameof(Index));
+            }
+            string successMessage;
+
+            switch (status)
+            {
+                case SD.StatusInProcess:
+                    await _orderService.UpdateOrderStatusAsync(orderHeader.Id, status);
+                    successMessage = "Order Status Updated Successfully.";
+                    break;
+                case SD.StatusCancelled:
+                    await _orderService.UpdateOrderStatusAsync(orderHeader.Id, status);
+                    successMessage = "Order cancelled Successfully.";
+                    break;
+                case SD.StatusRefunded:
+                    await _orderService.UpdateOrderStatusAsync(orderHeader.Id, status);
+                    successMessage = "Order refunded Successfully.";
+                    break;
+                case SD.StatusShipped:
+                    if(string.IsNullOrEmpty(OrderHeader.Carrier) || string.IsNullOrEmpty(OrderHeader.TrackingNumber))
+                    {
+                        TempData["error"] = "Carrier and Tracking Number are required to ship the order.";
+                        return RedirectToAction(nameof(Details), new { orderId = orderHeader.Id });
+                    }
+                    await _orderService.UpdateOrderStatusAsync(orderHeader.Id, status, orderHeader.Carrier, orderHeader.TrackingNumber);
+                    successMessage = "Order shipped Successfully.";
+                    break;
+                default:
+                    successMessage = "Invalid Order Status.";
+                    break;
+            }
+
+            TempData["Success"] = successMessage;
+
+            return RedirectToAction(nameof(Details), new { orderId = orderHeader.Id });
+        }
         #region API Calls
         [HttpGet]
         [AllowAnonymous]
-        public async Task<IActionResult> GetAll()
+        public async Task<IActionResult> GetAll(string status)
         {
-            var orders = await _orderService.GetAllOrderAsync();
+            string? userId = null;
+            if (!User.IsInRole(SD.RoleAdmin) && !User.IsInRole(SD.RoleEmployee))
+            {
+                var claimsIdentity = (ClaimsIdentity)User.Identity;
+                userId = claimsIdentity?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+                if (string.IsNullOrWhiteSpace(userId))
+                {
+                    return Unauthorized();
+                }
+            }
+            var orders = await _orderService.GetAllOrderAsync(userId, status);
             return Json(new { data = orders });
         }
 
