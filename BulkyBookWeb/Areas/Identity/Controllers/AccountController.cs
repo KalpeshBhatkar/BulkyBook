@@ -1,4 +1,5 @@
-﻿using BulkyBook.Models;
+﻿using BulkyBook.Business.Services.IServices;
+using BulkyBook.Models;
 using BulkyBook.Models.ViewModels;
 using BulkyBook.Utility;
 using Microsoft.AspNetCore.Identity;
@@ -13,12 +14,14 @@ namespace BulkyBookWeb.Areas.Identity.Controllers
         private readonly UserManager<ApplicationUser> _userManager;
         private readonly SignInManager<ApplicationUser> _signInManager;
         private readonly RoleManager<IdentityRole> _roleManager;
+        private readonly IShoppingCartService _shoppingCartService;
 
-        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, RoleManager<IdentityRole> roleManager)
+        public AccountController(UserManager<ApplicationUser> userManager, SignInManager<ApplicationUser> signInManager, RoleManager<IdentityRole> roleManager, IShoppingCartService shoppingCartService)
         {
             _userManager = userManager;
             _signInManager = signInManager;
             _roleManager = roleManager;
+            _shoppingCartService = shoppingCartService;
         }
 
         public IActionResult Login(string? returnUrl = null)
@@ -37,7 +40,7 @@ namespace BulkyBookWeb.Areas.Identity.Controllers
 
                 if (result.Succeeded)
                 {
-                    if(!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
+                    if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                     {
                         return Redirect(returnUrl);
                     }
@@ -67,7 +70,7 @@ namespace BulkyBookWeb.Areas.Identity.Controllers
         [HttpPost]
         public async Task<IActionResult> Register(RegisterVM registerVM, string? returnUrl = null)
         {
-            if(!await _roleManager.RoleExistsAsync(SD.RoleCustomer))
+            if (!await _roleManager.RoleExistsAsync(SD.RoleCustomer))
             {
                 await _roleManager.CreateAsync(new IdentityRole(SD.RoleCustomer));
                 await _roleManager.CreateAsync(new IdentityRole(SD.RoleAdmin));
@@ -98,6 +101,7 @@ namespace BulkyBookWeb.Areas.Identity.Controllers
                     {
                         await _userManager.AddToRoleAsync(user, SD.RoleCustomer);
                     }
+
                     if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
                     {
                         return Redirect(returnUrl);
@@ -118,7 +122,7 @@ namespace BulkyBookWeb.Areas.Identity.Controllers
         {
             return View();
         }
-        public async Task<IActionResult>Logout()
+        public async Task<IActionResult> Logout()
         {
             await _signInManager.SignOutAsync();
             return RedirectToAction("Index", "Home", new { area = "Customer" });
