@@ -1,6 +1,7 @@
 using BulkyBook.Business.Services;
 using BulkyBook.Business.Services.IServices;
 using BulkyBook.DataAccess.Data;
+using BulkyBook.DataAccess.DbInitializer;
 using BulkyBook.Models;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -69,6 +70,8 @@ app.UseAuthorization();
 
 app.MapStaticAssets();
 
+await SeedDatabase();
+
 app.MapControllerRoute(
     name: "MyArea",
     pattern: "{area:exists}/{controller=Home}/{action=Index}/{id?}")
@@ -82,3 +85,13 @@ app.MapControllerRoute(
     .WithStaticAssets();
 
 app.Run();
+
+
+async Task SeedDatabase()
+{
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbInitializer = scope.ServiceProvider.GetRequiredService<IDbInitializer>();
+        await dbInitializer.InitializeAsync();
+    }
+}
