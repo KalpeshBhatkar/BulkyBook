@@ -78,12 +78,31 @@ namespace BulkyBookWeb.Areas.Admin.Controllers
                     successMessage = "Order Status Updated Successfully.";
                     break;
                 case SD.StatusCancelled:
-                    await _orderService.UpdateOrderStatusAsync(orderHeader.Id, status);
-                    successMessage = "Order cancelled Successfully.";
-                    break;
                 case SD.StatusRefunded:
-                    await _orderService.UpdateOrderStatusAsync(orderHeader.Id, status);
-                    successMessage = "Order refunded Successfully.";
+                    try
+                    {
+                        bool refundIssued = await _orderService.CancelOrderWithRefundAsync(OrderHeader.Id);
+                        if (refundIssued)
+                        {
+                            successMessage = "Order cancelled and refund issued successfully. Funds will be returned to customer within 5-10 business days.";
+                        }
+                        else
+                        {
+                            successMessage = "Order cancelled successfully. (No payment was processed)";
+                        }
+                    }
+                    catch (InvalidOperationException ex)
+                    {
+                        // Business rule violation (e.g., trying to cancel shipped order)
+                        TempData["error"] = ex.Message;
+                        return RedirectToAction(nameof(Details), new { orderId = OrderHeader.Id });
+                    }
+                    catch (Stripe.StripeException ex)
+                    {
+                        // Refund failed - order is still cancelled but admin needs to manually refund
+                        TempData["error"] = $"Order cancelled but refund failed: {ex.Message}. Please process refund manually in Stripe Dashboard.";
+                        return RedirectToAction(nameof(Details), new { orderId = OrderHeader.Id });
+                    }
                     break;
                 case SD.StatusShipped:
                     if(string.IsNullOrEmpty(OrderHeader.Carrier) || string.IsNullOrEmpty(OrderHeader.TrackingNumber))
