@@ -82,7 +82,7 @@ namespace BulkyBook.Business.Services
             if (orderStatus == SD.StatusShipped)
             {
                 orderHeader.ShippingDate = DateTime.UtcNow;
-                if(!string.IsNullOrEmpty(carrier))
+                if (!string.IsNullOrEmpty(carrier))
                 {
                     orderHeader.Carrier = carrier;
                 }
@@ -91,6 +91,27 @@ namespace BulkyBook.Business.Services
                     orderHeader.TrackingNumber = trackingNumber;
                 }
             }
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task UpdateStripePaymentAsync(int orderId, string sessionId, string paymentIntentId)
+        {
+            var order = await _context.OrderHeaders.FindAsync(orderId);
+            if (order == null)
+            {
+                throw new KeyNotFoundException($"Order {orderId} not found");
+            }
+
+            if (!string.IsNullOrEmpty(sessionId))
+            {
+                order.SessionId = sessionId;
+            }
+
+            if (!string.IsNullOrEmpty(paymentIntentId))
+            {
+                order.PaymentIntentId = paymentIntentId;
+            }
+
             await _context.SaveChangesAsync();
         }
     }

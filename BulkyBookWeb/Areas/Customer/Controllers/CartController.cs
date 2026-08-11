@@ -1,10 +1,12 @@
 using BulkyBook.Business.Services.IServices;
+using BulkyBook.Models;
 using BulkyBook.Models.ViewModels;
 using BulkyBook.Utility;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Stripe;
+using Stripe.Checkout;
 using System.Security.Claims;
-using BulkyBook.Models;
 
 namespace BulkyBookWeb.Areas.Customer.Controllers
 {
@@ -93,11 +95,55 @@ namespace BulkyBookWeb.Areas.Customer.Controllers
             }).ToList();
 
             await _orderService.CreateOrderAsync(shoppingCartVM.OrderHeader);
-            var user = await _applicationUserService.GetUserByIdAsync(userId);
-            await _emailService.SendOrderConfirmationEmailAsync(user.Email, shoppingCartVM.OrderHeader.Id
-                , (decimal)shoppingCartVM.OrderHeader.OrderTotal);
-            return RedirectToAction("OrderConfirmation", new { id = shoppingCartVM.OrderHeader.Id });
-            //return View(shoppingCartVM);
+
+            try
+            {
+                var domain = Request.Scheme + "://" + Request.Host.Value + "/";
+
+                var options = new Stripe.Checkout.SessionCreateOptions
+                {
+                    SuccessUrl = domain + $"customer/cart/OrderConfirmation?id={shoppingCartVM.OrderHeader.Id}",
+                    CancelUrl = domain + "customer/cart/index",
+                    LineItems = new List<SessionLineItemOptions>(),
+                    Mode = "payment",
+                    Metadata = new Dictionary<string, string>
+                        {
+                            { "OrderId", shoppingCartVM.OrderHeader.Id.ToString() }
+                        }
+                };
+
+                foreach (var item in shoppingCartVM.ShoppingCartList)
+                {
+                    var sessionLineItem = new SessionLineItemOptions
+                    {
+                        PriceData = new SessionLineItemPriceDataOptions
+                        {
+                            UnitAmount = (long)(item.Price * 100),
+                            Currency = "usd",
+                            ProductData = new SessionLineItemPriceDataProductDataOptions
+                            {
+                                Name = item.Product.Title
+                            }
+                        },
+                        Quantity = item.Count,
+                    };
+                    options.LineItems.Add(sessionLineItem);
+                }
+
+                var service = new SessionService();
+                Session session = service.Create(options);
+                await _orderService.UpdateStripePaymentAsync(shoppingCartVM.OrderHeader.Id, session.Id, session.PaymentIntentId);
+
+                Response.Headers.Append("Location", session.Url);
+                return new StatusCodeResult(303);
+
+            }
+            catch (StripeException ex)
+            {
+                TempData["error"] = "Payment processing failed. Please try again.";
+                return RedirectToAction(nameof(Index));
+            }
+
         }
 
         public async Task<IActionResult> Plus(int cartId)
@@ -175,11 +221,44 @@ namespace BulkyBookWeb.Areas.Customer.Controllers
 
         public async Task<IActionResult> OrderConfirmation(int id)
         {
-            var orderHeader = await _orderService.GetOrderByIdAsync(id, includeUser: true, includeDetails: true);
+            var orderHeader = await _orderService.GetOrderByIdAsync(id, includeUser: true);
             if (orderHeader == null)
             {
                 return NotFound();
             }
+            var claimsIdentity = (ClaimsIdentity)User.Identity;
+            var userId = claimsIdentity?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (string.IsNullOrEmpty(userId))
+            {
+                return Unauthorized();
+            }
+            if (orderHeader.ApplicationUserId != userId)
+            {
+                return RedirectToAction("AccessDenied", "Account", new { area = "Identity" });
+            }
+
+            try
+            {
+                var service = new SessionService();
+                Session session = service.Get(orderHeader.SessionId);
+                if (session.PaymentStatus.ToLower() == "paid")
+                {
+                    await _orderService.UpdateStripePaymentAsync(id, session.Id, session.PaymentIntentId);
+                    await _orderService.UpdateOrderStatusAsync(id, SD.StatusApproved);
+                    TempData["success"] = "Payment completed successfully! Your order has been confirmed.";
+                }
+                else
+                {
+                    TempData["warning"] = "Payment status is pending. Please contact support if you completed the payment.";
+                }
+            }
+            catch (Exception ex)
+            {
+                TempData["error"] = "Unable to verify payment status. Please contact support with your order number.";
+            }
+
+            var user = await _applicationUserService.GetUserByIdAsync(userId);
+            await _emailService.SendOrderConfirmationEmailAsync(user.Email, orderHeader.Id, (decimal)orderHeader.OrderTotal);
             return View(id);
         }
 
